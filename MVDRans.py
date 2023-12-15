@@ -15,7 +15,7 @@ def mvdr_beamformer(x, theta_d):
     return w_mvdr
 
 def main():
-    theta_d_true = 30 * np.pi / 180
+    theta_d_true = 60 * np.pi / 180
     M = 8
     N = 1000
     sigma_squared = 0.1
