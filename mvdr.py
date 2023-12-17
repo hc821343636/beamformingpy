@@ -30,8 +30,7 @@ def generate_signal(
     for i, mic_position in enumerate(microphone_array):
         distance = mic_position * np.sin(np.radians(angle))
         delay = distance / speed_of_sound
-        signal[i, :] = 2 * np.sin(2 * np.pi * frequency * (time - delay)) + np.cos(
-            np.pi * frequency * (time - delay)) + 0.5 * np.cos(5 * np.pi * frequency * (time - delay))
+        signal[i, :] = np.sin(2 * np.pi * frequency * (time - delay))
 
     return time, signal
 
@@ -58,7 +57,7 @@ def estimate_angle(
     :return: Tuple of estimated angle in degrees and output power array.
     """
     R = np.cov(signal)
-    angles = np.linspace(0, 180, 360)
+    angles = np.linspace(0, 90, 180)
     output_power = np.zeros_like(angles)
 
     for idx, theta in enumerate(angles):
@@ -75,7 +74,7 @@ def main() -> None:
     """
     Main function to estimate the angle of arrival of a signal using MVDR beamforming.
     """
-    frequency = 2000  # Frequency of the signal in Hz   高于5200hz就会有旁瓣
+    frequency = 3000  # Frequency of the signal in Hz   高于5200hz就会有旁瓣
     duration = 0.005  # Duration of the signal in seconds
     sampling_rate = 441000  # Sampling rate in Hz
     N = 8  # Number of microphones in the array
@@ -98,7 +97,7 @@ def main() -> None:
     plt.savefig(f'image/8Signals of {angle_of_arrival} degrees.png')
     plt.show()
 
-    plt.plot(np.linspace(0, 180, 360), output_power)
+    plt.plot(np.linspace(0, 90, 180), output_power)
     plt.title(f"Estimated Angle: {estimated_angle} degrees")
     plt.xlabel("Angle (degrees)")
     plt.ylabel("Output Power")
