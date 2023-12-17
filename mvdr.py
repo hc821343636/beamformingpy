@@ -1,54 +1,69 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
+
+def generate_signal(frequency, duration, sampling_rate, angle, microphone_array, speed_of_sound=343):
+    """
+    Generate the signal received by each microphone in the array.
+    """
+    num_samples = int(duration * sampling_rate)
+    time = np.linspace(0, duration, num_samples)
+    signal = np.zeros((len(microphone_array), num_samples))
+
+    for i, mic_position in enumerate(microphone_array):
+        # Calculate delay relative to the first microphone
+        distance = mic_position * np.sin(np.radians(angle))
+        delay = distance / speed_of_sound
+        signal[i, :] = np.sin(2 * np.pi * frequency * (time - delay))
+
+    return time, signal
+
+def estimate_angle(signal, microphone_array, frequency, d, sampling_rate, speed_of_sound=343, delta=0.01):
+    """
+    Estimate the incident angle using the MVDR algorithm.
+    """
+    # Calculate the covariance matrix with regularization
+    R = np.cov(signal) + delta * np.identity(len(microphone_array))
+
+    # Assuming the direction of arrival is in the range of -90 to 90 degrees
+    angles = np.linspace(-90, 90, 360)
+    output_power = np.zeros_like(angles)
+
+    for idx, theta in enumerate(angles):
+        # Steering vector
+        a = np.exp(-1j * 2 * np.pi * frequency * np.sin(np.radians(theta)) * np.arange(len(microphone_array)) * d / speed_of_sound)
+        output_power[idx] = 1/np.abs(np.conj(a).T @ np.linalg.inv(R) @ a)
+
+    # Instead of looking for peaks, we look for the minimum value which indicates the DOA
+    estimated_angle = angles[np.argmax(output_power)]
+
+    return estimated_angle, output_power
 
 
-def mvdr_beamformer(R, a_theta_d):
-    # R: Covariance matrix of the received signals
-    # a_theta_d: Steering vector corresponding to the desired direction
+def main():
+    # Parameters
+    frequency = 1000  # Hz
+    duration = 2.0  # seconds
+    sampling_rate = 8000  # Hz
+    N = 8  # Number of microphones
+    d = 0.05  # Distance between microphones in meters
+    microphone_array = np.arange(N) * d
+    angle_of_arrival = 45  # degrees
 
-    # Calculate the MVDR weight vector
-    mu = 1 / (a_theta_d.conj().T @ np.linalg.inv(R) @ a_theta_d)
-    w_mvdr = (np.linalg.inv(R) @ a_theta_d) * mu
+    # Generate signal for both positive and negative angles
+    time, signal = generate_signal(frequency, duration, sampling_rate, angle_of_arrival, microphone_array)
 
-    return w_mvdr
+    # Estimate the angle
+    estimated_angle, output_power = estimate_angle(signal, microphone_array, frequency, d, sampling_rate)
 
-
-def compute_mvdr_beam_pattern(R, angles, theta_d):
-    beam_pattern = []
-
-    # Function to compute the steering vector for a specific angle
-    def a_theta_d(angle):
-        return np.exp(1j * 2 * np.pi * np.sin(np.radians(angle)) * np.arange(M))
-
-    for angle in angles:
-        a_theta = a_theta_d(angle)
-        w_mvdr = mvdr_beamformer(R, a_theta_d(theta_d))
-        beam_pattern.append(np.abs(np.dot(w_mvdr.conj().T, a_theta)))
-
-    return np.array(beam_pattern)
+    # Plotting
+    plt.figure()
+    plt.plot(np.linspace(-90, 90, 360), output_power)
+    plt.title(f"Estimated Angle: {estimated_angle} degrees")
+    plt.xlabel("Angle (degrees)")
+    plt.ylabel("Output Power")
+    plt.show()
 
 
-# Number of array elements
-M = 8
-
-# Generate a sample covariance matrix (you need to replace this with your actual covariance matrix)
-R = np.eye(M)
-
-# Generate angles for beam pattern plot (in degrees)
-angles = np.linspace(-90, 90, 180)
-
-# Assume the desired direction is 0 degrees
-theta_d = 20
-
-# Compute MVDR beam pattern
-beam_pattern_mvdr = compute_mvdr_beam_pattern(R, angles, theta_d)
-
-# Plot the MVDR beam pattern
-plt.figure(figsize=(10, 6))
-plt.plot(angles, 20 * np.log10(beam_pattern_mvdr / np.max(beam_pattern_mvdr)), label='MVDR')
-plt.title('MVDR Beam Pattern')
-plt.xlabel('Angle (degrees)')
-plt.ylabel('Gain (dB)')
-plt.legend()
-plt.grid(True)
-plt.show()
+if __name__ == "__main__":
+    main()
