@@ -30,7 +30,8 @@ def generate_signal(
     for i, mic_position in enumerate(microphone_array):
         distance = mic_position * np.sin(np.radians(angle))
         delay = distance / speed_of_sound
-        signal[i, :] = np.sin(2 * np.pi * frequency * (time - delay))
+        signal[i, :] = 2 * np.sin(2 * np.pi * frequency * (time - delay)) + np.cos(
+            np.pi * frequency * (time - delay)) + 0.5 * np.cos(5 * np.pi * frequency * (time - delay))
 
     return time, signal
 
@@ -56,14 +57,14 @@ def estimate_angle(
     :param delta: Regularization term to avoid singularity (default is 0.01).
     :return: Tuple of estimated angle in degrees and output power array.
     """
-    R = np.cov(signal) + delta * np.identity(len(microphone_array))
-    angles = np.linspace(-90, 90, 360)
+    R = np.cov(signal)
+    angles = np.linspace(0, 180, 360)
     output_power = np.zeros_like(angles)
 
     for idx, theta in enumerate(angles):
         a = np.exp(-1j * 2 * np.pi * frequency * np.sin(np.radians(theta)) * np.arange(
             len(microphone_array)) * d / speed_of_sound)
-        output_power[idx] = 1 / np.abs(np.conj(a).T @ np.linalg.inv(R) @ a)
+        output_power[idx] = 1 / np.abs(a.T @ np.linalg.inv(R) @ a)
 
     estimated_angle = angles[np.argmax(output_power)]
 
@@ -74,35 +75,35 @@ def main() -> None:
     """
     Main function to estimate the angle of arrival of a signal using MVDR beamforming.
     """
-    frequency = 4000  # Frequency of the signal in Hz   高于5200hz就会有旁瓣
-    duration = 0.5  # Duration of the signal in seconds
-    sampling_rate = 18000  # Sampling rate in Hz
+    frequency = 2000  # Frequency of the signal in Hz   高于5200hz就会有旁瓣
+    duration = 0.005  # Duration of the signal in seconds
+    sampling_rate = 441000  # Sampling rate in Hz
     N = 8  # Number of microphones in the array
     d = 0.033  # Distance between adjacent microphones in meters
     microphone_array = np.arange(N) * d
-    angle_of_arrival = -60  # Expected angle of arrival in degrees
+    angle_of_arrival = 39  # Expected angle of arrival in degrees
 
     time, signal = generate_signal(frequency, duration, sampling_rate, angle_of_arrival, microphone_array)
     estimated_angle, output_power = estimate_angle(signal, microphone_array, frequency, d, sampling_rate)
 
-
-    ''' 
     plt.figure(figsize=(15, 10))
-     for i in range(N):
-         plt.plot(time, signal[i, :], label=f'Microphone {i + 1}')  # Offset each signal for clarity
-    
-     plt.title('Signals received by each microphone due to incident angle of 40 degrees')
-     plt.xlabel('Time [s]')
-     plt.ylabel('Amplitude')
-     plt.grid(True)
-     plt.legend()
-     plt.savefig(f'image/8Signals of {angle_of_arrival} degrees.png')
-     plt.show()'''
-    plt.plot(np.linspace(-90, 90, 360), output_power)
+    for i in range(N):
+        plt.plot(time, signal[i, :], label=f'Microphone {i + 1}')  # Offset each signal for clarity
+
+    plt.title('Signals received by each microphone due to incident angle of 40 degrees')
+    plt.xlabel('Time [s]')
+    plt.ylabel('Amplitude')
+    plt.grid(True)
+    plt.legend()
+    plt.savefig(f'image/8Signals of {angle_of_arrival} degrees.png')
+    plt.show()
+
+    plt.plot(np.linspace(0, 180, 360), output_power)
     plt.title(f"Estimated Angle: {estimated_angle} degrees")
     plt.xlabel("Angle (degrees)")
     plt.ylabel("Output Power")
     plt.show()
+
 
 if __name__ == "__main__":
     main()
