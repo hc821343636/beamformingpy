@@ -1,63 +1,61 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
 
-def generate_signal(frequency, duration, sampling_rate, angle, microphone_array, speed_of_sound=343):
-    """
-    Generate the signal received by each microphone in the array.
-    """
+# 远场效应处理
+def generate_signal_circular_array(frequency, duration, sampling_rate, angle, num_mics, radius, speed_of_sound=343):
     num_samples = int(duration * sampling_rate)
     time = np.linspace(0, duration, num_samples)
-    k = 2 * np.pi * frequency / speed_of_sound
-    signal = np.zeros((len(microphone_array), num_samples))
+    signal = np.zeros((num_mics, num_samples))
+    source_angle_rad = np.radians(angle)
+    mic_angles = np.linspace(0, 2 * np.pi, num_mics, endpoint=False)
 
-    for i, mic_position in enumerate(microphone_array):
-        distance = mic_position * np.sin(np.radians(angle))
+    for i, mic_angle in enumerate(mic_angles):
+        # Calculate the angle difference between the source and microphone position
+        angle_diff = mic_angle - source_angle_rad
+
+        # Calculate the distance based on the arc length (radius * angle_diff)
+        distance = radius * angle_diff
+
+        # Calculate the time delay
         delay = distance / speed_of_sound
+
+        # Generate the signal with the calculated delay
         signal[i, :] = np.sin(2 * np.pi * frequency * (time - delay))
 
-    return time, signal
+    return signal
 
-def estimate_angle(signal, microphone_array, sampling_rate, speed_of_sound=343):
-    """
-    Estimate the incident angle using the MVDR algorithm.
-    """
-    # Calculate the covariance matrix
+def estimate_angle_circular_array(signal, frequency, radius, num_mics, speed_of_sound=343):
     R = np.cov(signal)
-
-    # Assuming the direction of arrival is in the range of -90 to 90 degrees
-    angles = np.linspace(-90, 90, 360)
-    output_power = np.zeros_like(angles, dtype=np.float64)
+    angles = np.linspace(0, 2 * np.pi, 360)
+    output_power = np.zeros_like(angles)
 
     for idx, theta in enumerate(angles):
-        # Steering vector
-        a = np.exp(-1j * 2 * np.pi * frequency * np.sin(np.radians(theta)) * np.arange(len(microphone_array)) * d / speed_of_sound)
-        output_power[idx] = 1 / (np.conj(a).T @ np.linalg.inv(R) @ a).real
+        steering_vector = np.array([np.exp(-1j * 2 * np.pi * frequency * radius / speed_of_sound *
+                                          np.cos(mic_angle - theta)) for mic_angle in np.linspace(0, 2 * np.pi, num_mics, endpoint=False)])
+        output_power[idx] = 1 / np.abs(np.conj(steering_vector).T @ np.linalg.inv(R) @ steering_vector)
 
-    # Find the peak in the output power pattern
-    peaks, _ = find_peaks(output_power)
-    estimated_angle = angles[peaks[0]]
+    estimated_angle = np.degrees(angles[np.argmax(output_power)])
+    return estimated_angle, angles, output_power
 
-    return estimated_angle, output_power
+def main():
+    frequency = 10000  # Hz
+    duration = 1.0    # seconds
+    sampling_rate = 44100  # Hz
+    num_mics = 6
+    radius = 0.025    # meters
+    angle_of_arrival = 40  # degrees
 
-# Parameters
-frequency = 1000  # Hz
-duration = 1.0    # seconds
-sampling_rate = 8000  # Hz
-N = 4             # Number of microphones
-d = 0.05          # Distance between microphones in meters
-microphone_array = np.arange(N) * d
-angle_of_arrival = 30  # degrees
+    signal = generate_signal_circular_array(frequency, duration, sampling_rate, angle_of_arrival, num_mics, radius)
+    estimated_angle, angles, output_power = estimate_angle_circular_array(signal, frequency, radius, num_mics)
 
-# Generate signal
-time, signal = generate_signal(frequency, duration, sampling_rate, angle_of_arrival, microphone_array)
+    # Plotting in polar coordinates
+    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+    ax.plot(angles, output_power)
+    ax.set_theta_zero_location('N')  # Set 0 degrees to the top
+    ax.set_theta_direction(-1)  # Clockwise
+    ax.set_title(f"Estimated Angle: {estimated_angle} degrees")
+    plt.show()
 
-# Estimate the angle
-estimated_angle, output_power = estimate_angle(signal, microphone_array, sampling_rate)
+if __name__ == "__main__":
+    main()
 
-# Plotting
-plt.plot(np.linspace(-90, 90, 360), output_power)
-plt.title(f"Estimated Angle: {estimated_angle} degrees")
-plt.xlabel("Angle (degrees)")
-plt.ylabel("Output Power")
-plt.show()
