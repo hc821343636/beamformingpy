@@ -1,61 +1,49 @@
+import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
+matplotlib.rcParams['font.family'] = 'SimHei'
+matplotlib.rcParams['font.sans-serif'] = ['SimHei']
+matplotlib.rcParams['axes.unicode_minus'] = False  # 正确显示负号
+# 环境参数
+c = 343  # 声速
+SNR = 20  # 信噪比
+SL = 140  # 信号能量
+r = 7000  # 距离
+f = 50  # 频率
+lambda_ = c / f  # 波长
+angle = 30  # 入射角
 
-# 远场效应处理
-def generate_signal_circular_array(frequency, duration, sampling_rate, angle, num_mics, radius, speed_of_sound=343):
-    num_samples = int(duration * sampling_rate)
-    time = np.linspace(0, duration, num_samples)
-    signal = np.zeros((num_mics, num_samples))
-    source_angle_rad = np.radians(angle)
-    mic_angles = np.linspace(0, 2 * np.pi, num_mics, endpoint=False)
+# 水平阵参数
+M = 9  # 阵元数
+d = c / (2 * f)  # 阵元间距
+angles = np.arange(-90, 90.1, 0.1)  # 检测角度范围
+Nsnapshot = 15  # 快拍数
 
-    for i, mic_angle in enumerate(mic_angles):
-        # Calculate the angle difference between the source and microphone position
-        angle_diff = mic_angle - source_angle_rad
+# 阵列响应向量
+v = np.sqrt(M) * np.exp(-1j * 2 * np.pi * (d * np.sin(np.radians(angle)) / lambda_) * np.arange(-(M-1)/2, (M-1)/2 + 1))
+# 发射信号
+s = np.sqrt(10**(SL/10)) * np.exp(1j * 2 * np.pi * f * np.arange(1, Nsnapshot + 1))
+# 高斯白噪声
+n = np.sqrt(10**((SL-SNR)/10)) * (np.random.randn(M, Nsnapshot) + 1j * np.random.randn(M, Nsnapshot)) / np.sqrt(2)
+# 接收信号
+x = np.sqrt(M) * v[:, None] * s + n
+# 计算响应向量和波束形成响应
+Rx = np.dot(x, x.conj().T) / Nsnapshot
+# 驾驶向量
+c = np.sqrt(M) * np.exp(-1j * 2 * np.pi * np.arange(-(M-1)/2, (M-1)/2 + 1)[:, None] * (d * np.sin(np.radians(angles)) / lambda_))
+# 直接求解闭式解
+inv_Rx = np.linalg.inv(Rx)
+Cmvdr = np.zeros_like(c, dtype=complex)
+for i in range(c.shape[1]):
+    steering_vector = c[:, i]
+    Cmvdr[:, i] = np.linalg.inv(Rx).dot(steering_vector) / (steering_vector.conj().T.dot(np.linalg.inv(Rx)).dot(steering_vector))
+y1 = np.abs(np.diag(Cmvdr.conj().T.dot(Rx).dot(Cmvdr)))
+y1 = y1 / np.max(y1)
 
-        # Calculate the distance based on the arc length (radius * angle_diff)
-        distance = radius * angle_diff
-
-        # Calculate the time delay
-        delay = distance / speed_of_sound
-
-        # Generate the signal with the calculated delay
-        signal[i, :] = np.sin(2 * np.pi * frequency * (time - delay))
-
-    return signal
-
-def estimate_angle_circular_array(signal, frequency, radius, num_mics, speed_of_sound=343):
-    R = np.cov(signal)
-    angles = np.linspace(0, 2 * np.pi, 360)
-    output_power = np.zeros_like(angles)
-
-    for idx, theta in enumerate(angles):
-        steering_vector = np.array([np.exp(-1j * 2 * np.pi * frequency * radius / speed_of_sound *
-                                          np.cos(mic_angle - theta)) for mic_angle in np.linspace(0, 2 * np.pi, num_mics, endpoint=False)])
-        output_power[idx] = 1 / np.abs(np.conj(steering_vector).T @ np.linalg.inv(R) @ steering_vector)
-
-    estimated_angle = np.degrees(angles[np.argmax(output_power)])
-    return estimated_angle, angles, output_power
-
-def main():
-    frequency = 10000  # Hz
-    duration = 1.0    # seconds
-    sampling_rate = 44100  # Hz
-    num_mics = 6
-    radius = 0.025    # meters
-    angle_of_arrival = 40  # degrees
-
-    signal = generate_signal_circular_array(frequency, duration, sampling_rate, angle_of_arrival, num_mics, radius)
-    estimated_angle, angles, output_power = estimate_angle_circular_array(signal, frequency, radius, num_mics)
-
-    # Plotting in polar coordinates
-    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-    ax.plot(angles, output_power)
-    ax.set_theta_zero_location('N')  # Set 0 degrees to the top
-    ax.set_theta_direction(-1)  # Clockwise
-    ax.set_title(f"Estimated Angle: {estimated_angle} degrees")
-    plt.show()
-
-if __name__ == "__main__":
-    main()
-
+# 绘图
+plt.figure()
+plt.plot(angles, 10 * np.log10(y1), 'k', linewidth=2)
+plt.xlabel('Angle (deg)', fontsize=15)
+plt.ylabel('Power Response (dB)', fontsize=15)
+plt.title('单目标MVDR波束形成（实际信号）', fontsize=20)
+plt.show()

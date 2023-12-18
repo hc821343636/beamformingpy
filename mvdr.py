@@ -28,7 +28,7 @@ def generate_signal(
     signal = np.zeros((len(microphone_array), num_samples))
 
     for i, mic_position in enumerate(microphone_array):
-        distance = mic_position * np.sin(np.radians(angle))
+        distance = mic_position * np.cos(np.radians(angle))
         delay = distance / speed_of_sound
         signal[i, :] = np.sin(2 * np.pi * frequency * (time - delay))
 
@@ -57,11 +57,11 @@ def estimate_angle(
     :return: Tuple of estimated angle in degrees and output power array.
     """
     R = np.cov(signal)
-    angles = np.linspace(0, 90, 180)
+    angles = np.linspace(0, 180, 360)
     output_power = np.zeros_like(angles)
 
     for idx, theta in enumerate(angles):
-        a = np.exp(-1j * 2 * np.pi * frequency * np.sin(np.radians(theta)) * np.arange(
+        a = np.exp(-1j * 2 * np.pi * frequency * np.cos(np.radians(theta)) * np.arange(
             len(microphone_array)) * d / speed_of_sound)
         output_power[idx] = 1 / np.abs(a.T @ np.linalg.inv(R) @ a)
 
@@ -76,28 +76,28 @@ def main() -> None:
     """
     frequency = 3000  # Frequency of the signal in Hz   高于5200hz就会有旁瓣
     duration = 0.005  # Duration of the signal in seconds
-    sampling_rate = 441000  # Sampling rate in Hz
-    N = 8  # Number of microphones in the array
-    d = 0.033  # Distance between adjacent microphones in meters
+    sampling_rate = 44100  # Sampling rate in Hz
+    N = 6  # Number of microphones in the array
+    d = 0.001  # Distance between adjacent microphones in meters
     microphone_array = np.arange(N) * d
     angle_of_arrival = 39  # Expected angle of arrival in degrees
 
     time, signal = generate_signal(frequency, duration, sampling_rate, angle_of_arrival, microphone_array)
     estimated_angle, output_power = estimate_angle(signal, microphone_array, frequency, d, sampling_rate)
 
-    plt.figure(figsize=(15, 10))
+    """plt.figure(figsize=(15, 10))
     for i in range(N):
-        plt.plot(time, signal[i, :], label=f'Microphone {i + 1}')  # Offset each signal for clarity
+        plt.plot(time, signal[i, :], label=f'Microphone {i + 1}')  # Offset each signal for clarity"""
 
-    plt.title('Signals received by each microphone due to incident angle of 40 degrees')
+    """ plt.title('Signals received by each microphone due to incident angle of 40 degrees')
     plt.xlabel('Time [s]')
     plt.ylabel('Amplitude')
     plt.grid(True)
     plt.legend()
-    plt.savefig(f'image/8Signals of {angle_of_arrival} degrees.png')
-    plt.show()
+    #plt.savefig(f'image/8Signals of {angle_of_arrival} degrees.png')
+    plt.show()"""
 
-    plt.plot(np.linspace(0, 90, 180), output_power)
+    plt.plot(np.linspace(0, 180, 360), output_power)
     plt.title(f"Estimated Angle: {estimated_angle} degrees")
     plt.xlabel("Angle (degrees)")
     plt.ylabel("Output Power")
