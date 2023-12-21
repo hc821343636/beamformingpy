@@ -1,7 +1,7 @@
 import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
-#win
+# 线性麦克风 波束成形
 """matplotlib.rcParams['font.family'] = 'SimHei'
 matplotlib.rcParams['font.sans-serif'] = ['SimHei']
 matplotlib.rcParams['axes.unicode_minus'] = False  # 正确显示负号
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     c = 343  # 声速
     SNR = 20  # 信噪比
     SL = 140  # 信号能量
-    r = 7000  # 距离
+    #r = 7000  # 距离
     f = 2000  # 频率
     lambda_ = c / f  # 波长
     angle = 30  # 入射角
@@ -35,6 +35,7 @@ if __name__ == '__main__':
     n = np.sqrt(10**((SL-SNR)/10)) * (np.random.randn(M, Nsnapshot) + 1j * np.random.randn(M, Nsnapshot)) / np.sqrt(2)
     # 接收信号
     x = np.sqrt(M) * v[:, None] * s + n
+    print(np.shape(x))
     # 计算响应向量和波束形成响应
     Rx = np.dot(x, x.conj().T) / Nsnapshot
     # 驾驶向量
